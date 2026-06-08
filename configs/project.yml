@@ -14,16 +14,16 @@ teacher_model: ~
 
 dataset:
   type: baseline # mixed | voc_xml | baseline
-  root: ../../../Documents/Playground/train_data/datasets/phase1_joint_detection_baseline
-  class_summary_csv: manifests/class_summary.csv
+  root: ./datasets
+  class_summary_csv: manifests/class_mapping.csv
   train_images: images
   train_annotations: labels
   train_manifest: ~
-  train_split_csv: manifests/trainval_split_90_10/train_split.csv
+  train_split_csv: manifests/train_split.csv
   val_images: images
   val_annotations: labels
   val_manifest: ~
-  val_split_csv: manifests/trainval_split_90_10/val_split.csv
+  val_split_csv: manifests/val_split.csv
   keep_difficult: False
   polygon_policy: exclude_sample
 

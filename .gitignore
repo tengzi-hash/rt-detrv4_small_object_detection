@@ -35,6 +35,8 @@ tensorboard/
 datasets/
 test_images/
 manifests/
+data_raw
+docs/*.xlsx
 
 # Model weights and checkpoints
 pretrain/

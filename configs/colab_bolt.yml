@@ -40,10 +40,8 @@ ema:
 
 dataset:
   type: baseline
-  # On Colab, point this at the uploaded dataset, e.g.
-  #   /content/drive/MyDrive/loco_v1
-  root: ./datasets/loco_v1
-  class_summary_csv: manifests/class_summary.csv
+  root: ./datasets
+  class_summary_csv: manifests/class_mapping.csv
   train_images: images
   train_annotations: labels
   train_manifest: ~
@@ -79,9 +77,9 @@ val_transforms:
   rotate_degrees: 0.0
 
 train_dataloader:
-  batch_size: 2
+  batch_size: 4
   shuffle: True
-  num_workers: 2
+  num_workers: 4
   drop_last: True
   pin_memory: True
   # Repeat-factor sampling up-weights rare-class images (train split only).
@@ -89,9 +87,9 @@ train_dataloader:
   balance_threshold: 0.1
 
 val_dataloader:
-  batch_size: 2
+  batch_size: 4
   shuffle: False
-  num_workers: 2
+  num_workers: 4
   drop_last: False
   pin_memory: True
 

@@ -1,0 +1,125 @@
+# Dataset build rules for the locomotive RT-DETRv4 training set.
+# CotterPin 暂时保留，因为我需要他判断是否丢失，不然容易误报，但是我需要想一个办法来确定是开口销不是BoltHead,BoltNut这些东西，可能需要一些额外的辅助方法，
+# 如果后续有大量数据也许能分的更好，或是单独为这个建立一个分类模型，来重点区分这三个区别，先从 CotterPin 训练后的 Confuesion Parts 再看，或是重新标注完整的开口销 
+
+output_dir: datasets
+exclude_dirs: [机车漏油真实数据, 大部件标注图]
+
+rules:
+  drop_covered_by:
+    - inner: CotterPin
+      outer: CotterPin_k
+      threshold: 0.95
+
+batches:
+  - name: data1
+    path: data_raw/data1
+    drop_classes: [OilPlug]
+    merge_overlapping_clamp: true
+    sample_fixes:
+      N-N-T2-20250519-0856-HXD11319-AB-B-1-2-M-3-SSZZ-1-1:
+        force_merge: [Clamp]
+      N-N-T1-20250523-2128-HXD11338-AB-B-1-2-M-19-CLXZ-1-1:
+        remap:
+          Clamp: BoltHead
+      N-N-T2-20250527-2257-HXD11415-BA-A-2-4-M-9-CLXZ-1-1:
+        remap:
+          BoltNut_z: BoltHead
+      N-N-T1-20241121-1023-HXD111911-A-B-1-1-W-2-YXXG-6-6:
+        box_fixes:
+          - from: Spring
+            to: BoltHead
+            box: [658, 536, 793, 693]
+      N-N-T1-20241206-1014-HXD11382-AB-B-1-1-L-2-YXXG-6-6:
+        box_fixes:
+          - from: Spring
+            to: BoltHead
+            box: [1, 979, 59, 1084]
+      N-N-T2-20250519-0856-HXD11319-AB-B-1-1-M-2-QYDJ-2-8:
+        remap:
+          CotterPin: BoltHead
+      N-N-T2-20250523-1523-HXD11465-AB-A-1-1-M-17-PZSS-1-1:
+        box_fixes:
+          - from: BoltNut
+            to: BoltHead
+            box: [1033, 487, 1168, 613]
+          - from: BoltNut
+            to: BoltHead
+            box: [684, 501, 815, 630]
+      机车故障/T1/T1-140.xml:
+        box_fixes:
+          - from: AxleBox
+            to: Spring
+            box: [971, 10, 1771, 760]
+      data1/异物5/N-N-T2-20241127-0918-HXD11382-AB-B-2-3-L-6-YXXG-6-4.xml:
+        box_fixes:
+          - from: BoltHead
+            to: BoltNut
+            box: [897, 1763, 1095, 2010]
+      data1/异物4/N-N-T2-20241127-0918-HXD11382-AB-B-1-2-M-3-JCZD-2-8.xml:
+        add_boxes:
+          - cls: LockSpring
+            box: [1471, 945, 1621, 1054]
+      data1/异物4/N-N-T1-20241127-0918-HXD11382-AB-B-2-3-M-6-CLXZ-3-8.xml:
+        add_boxes:
+          - cls: BoltHead
+            box: [181, 2, 543, 208]
+      data1/异物4/N-N-T2-20241127-0918-HXD11382-AB-B-1-1-L-2-FZZZ-1-3.xml:
+        add_boxes:
+          - cls: BoltNut
+            box: [393, 322, 508, 423]
+      机车数据2/T2/T2-115.xml:
+        add_boxes:
+          - cls: abnormal
+            box: [840, 1040, 1280, 1365]
+
+  - name: data2
+    path: data_raw/data2
+    remap:
+      CotterPin: CotterPin_k
+    drop_clamp_covered_by_clamp_2: 0.8
+    sample_fixes:
+      N-N-T2-20260408-1324-HXD1D0235-BA-B-2-2-M-8-JCZD-05-12:
+        drop: [BoltNut_z]
+
+class_remap:
+  LockingWire: IronWire
+  Locksping: LockSpring
+  IronWire_y: IronWire
+  IronWire_b: IronWire
+  IronWire_c: IronWire
+  IronWire_f: IronWire
+  IronWire_z: IronWire
+  BoltHead_f: BoltHead
+  BoltNut_g: BoltNut
+  PrimarySuspension: Spring
+  Sweeper: StoneSweeper
+  CotternPin: CotterPin
+  PortableLighterSocket: PortableLightSocket
+  WarehouseSocket: WareHouseSocket
+  Clamp_2: Clamp
+
+duplicate_min_iou: 0.50
+
+duplicate_keep:
+  - image_hash: 03438cd7acf5f03bea9105df3d70bf90091b02bd
+    keep: data1/1340/N-N-T2-20250523-1952-HXD11304-AB-A-1-1-M-16-JCZD-2-2.xml
+  - image_hash: 15023b7cc0103f9829f30819c15409c0eb34a52a
+    keep: data1/异物5/N-N-T2-20241127-0918-HXD11382-AB-B-2-3-L-6-YXXG-6-4.xml
+  - image_hash: 6c15b835b3b2876c3ae7fea847f22861e7de54ec
+    keep: 机车数据2/T2/T2-118_20241111_155730.xml
+  - image_hash: 95a750a3197f95ad888082aee9f6c1fd8cc43eff
+    keep: data1/异物4/N-N-T2-20241127-0918-HXD11382-AB-B-1-2-M-3-JCZD-2-8.xml
+  - image_hash: b3fef919637bbdb997fa2ed9ef86d000975d9c31
+    keep: data1/异物4/N-N-T1-20241127-0918-HXD11382-AB-B-2-3-M-6-CLXZ-3-8.xml
+  - image_hash: b9f174611e6b8f71c3c7932e71f6939cae982dba
+    keep: data1/异物4/N-N-T2-20241127-0918-HXD11382-AB-B-1-1-L-2-FZZZ-1-3.xml
+  - image_hash: f860c72a1a9a0224d673264e9cc0639c428d1d3d
+    keep: 机车数据1/T2/T2-145_20241111_154659.xml
+  - image_hash: fded8e0e833e3994dc145eb69125d071db4034c2
+    keep: 机车数据2/T2/T2-115.xml
+
+split:
+  val_ratio: 0.1
+  seed: 20260603
+  train_only_class_max_files: 2
