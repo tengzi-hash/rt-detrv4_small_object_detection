@@ -37,6 +37,7 @@ test_images/
 manifests/
 data_raw
 docs/*.xlsx
+onhold/
 
 # Model weights and checkpoints
 pretrain/

@@ -82,9 +82,29 @@ batches:
       N-N-T2-20260408-1324-HXD1D0235-BA-B-2-2-M-8-JCZD-05-12:
         drop: [BoltNut_z]
 
+  - name: data3
+    path: data_raw/data3
+
+  - name: data4
+    path: data_raw/data4
+    rules:
+      label_suffixes: [.xml]
+
+  - name: data5
+    path: data_raw/data5
+    rules:
+      output_stem_suffixes:
+        - path_contains: data_raw/data5/360机车项目-手拉环0512-金婵
+          suffix: _1
+
+  - name: data6_std
+    path: data_raw/data6_std/HXD1D标准图
+    rules:
+      unlabel_output_dir: unlabel_std
+
 class_remap:
   LockingWire: IronWire
-  Locksping: LockSpring
+  LockSping: LockSpring
   IronWire_y: IronWire
   IronWire_b: IronWire
   IronWire_c: IronWire
