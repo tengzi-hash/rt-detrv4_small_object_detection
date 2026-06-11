@@ -5,20 +5,10 @@
 output_dir: datasets
 exclude_dirs: [机车漏油真实数据, 大部件标注图]
 
-rules:
-  drop_covered_by:
-    - inner: CotterPin
-      outer: CotterPin_k
-      threshold: 0.95
-
 batches:
   - name: data1
     path: data_raw/data1
-    drop_classes: [OilPlug]
-    merge_overlapping_clamp: true
     sample_fixes:
-      N-N-T2-20250519-0856-HXD11319-AB-B-1-2-M-3-SSZZ-1-1:
-        force_merge: [Clamp]
       N-N-T1-20250523-2128-HXD11338-AB-B-1-2-M-19-CLXZ-1-1:
         remap:
           Clamp: BoltHead
@@ -75,9 +65,6 @@ batches:
 
   - name: data2
     path: data_raw/data2
-    remap:
-      CotterPin: CotterPin_k
-    drop_clamp_covered_by_clamp_2: 0.8
     sample_fixes:
       N-N-T2-20260408-1324-HXD1D0235-BA-B-2-2-M-8-JCZD-05-12:
         drop: [BoltNut_z]
@@ -101,23 +88,6 @@ batches:
     path: data_raw/data6_std/HXD1D标准图
     rules:
       unlabel_output_dir: unlabel_std
-
-class_remap:
-  LockingWire: IronWire
-  LockSping: LockSpring
-  IronWire_y: IronWire
-  IronWire_b: IronWire
-  IronWire_c: IronWire
-  IronWire_f: IronWire
-  IronWire_z: IronWire
-  BoltHead_f: BoltHead
-  BoltNut_g: BoltNut
-  PrimarySuspension: Spring
-  Sweeper: StoneSweeper
-  CotternPin: CotterPin
-  PortableLighterSocket: PortableLightSocket
-  WarehouseSocket: WareHouseSocket
-  Clamp_2: Clamp
 
 duplicate_min_iou: 0.50
 

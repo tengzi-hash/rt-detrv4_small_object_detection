@@ -1,7 +1,0 @@
-﻿batch,path,raw_images,raw_labels,paired_before_dedupe,kept_after_dedupe,dropped_by_dedupe_or_conflict,unlabel_images,issues,issue_types,rule_stats
-data1,G:\BaiduNetdiskDownload\rt-detrv4\rt-detrv4_small_object_detection\data_raw\data1,3450,3261,3258,3036,222,193,3,empty_label:3,dropped_CotterPin_covered_by_CotterPin_k:28;dropped_OilPlug:116;merged_overlapping_clamp_boxes:56;sample_override_added_boxes:1;sample_override_box_fixes:5;sample_override_force_merged_Clamp:1;sample_override_remapped_BoltNut_z_to_BoltHead:3;sample_override_remapped_Clamp_to_BoltHead:1;sample_override_remapped_CotterPin_to_BoltHead:9
-data2,G:\BaiduNetdiskDownload\rt-detrv4\rt-detrv4_small_object_detection\data_raw\data2,3520,3492,0,0,0,0,3520,image_unreadable:3492;unlabel_image_unreadable:28,
-data3,G:\BaiduNetdiskDownload\rt-detrv4\rt-detrv4_small_object_detection\data_raw\data3,217,210,210,210,0,7,0,,
-data4,G:\BaiduNetdiskDownload\rt-detrv4\rt-detrv4_small_object_detection\data_raw\data4,39,39,39,39,0,0,0,,
-data5,G:\BaiduNetdiskDownload\rt-detrv4\rt-detrv4_small_object_detection\data_raw\data5,320,320,320,320,0,0,0,,
-data6_std,G:\BaiduNetdiskDownload\rt-detrv4\rt-detrv4_small_object_detection\data_raw\data6_std\HXD1D标准图,176,161,160,160,0,16,1,empty_label:1,
