@@ -1,0 +1,59 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE/editor files
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and runtime caches
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Training and inference outputs
+outputs/
+runs/
+wandb/
+tensorboard/
+
+# Datasets, local test images, and generated manifests
+datasets/
+test_images/
+manifests/
+data_raw
+docs/*.xlsx
+onhold/
+
+# Model weights and checkpoints
+pretrain/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.engine
+
+# Generated prediction artifacts
+predictions.jsonl
+failures.json
+run_summary.json
+visualizations/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
