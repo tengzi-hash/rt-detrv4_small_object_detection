@@ -119,6 +119,10 @@ batches:
       T2-HXDXXXXX-M-6-QYDJ-01-6:
         drop: [BoltHead_1]
 duplicate_min_iou: 0.50
+duplicate_merge_conflicts: true
+duplicate_merge_iou: 0.50
+duplicate_prefer_label_path_contains:
+  - data_raw/data5/360机车项目-0512手拉环断裂-160张-金婵
 
 duplicate_keep:
   - image_hash: 4617eb4a9dbf37297454c5406c70b37caab6408a
@@ -144,4 +148,5 @@ split:
   val_ratio: 0.1
   seed: 20260603
   train_only_class_max_files: 2
+
 

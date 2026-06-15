@@ -101,6 +101,9 @@ def duplicate_rules(config: dict[str, Any]) -> dict[str, Any]:
     legacy_policy = ((config.get("rules") or {}).get("duplicate_image_policy") or {}).get("same_classes_same_count") or {}
     return {
         "duplicate_min_iou": float(config.get("duplicate_min_iou", legacy_policy.get("min_pair_iou", 0.50))),
+        "duplicate_merge_conflicts": bool(config.get("duplicate_merge_conflicts", False)),
+        "duplicate_merge_iou": float(config.get("duplicate_merge_iou", config.get("duplicate_min_iou", legacy_policy.get("min_pair_iou", 0.50)))),
+        "duplicate_prefer_label_path_contains": list(config.get("duplicate_prefer_label_path_contains") or []),
         "duplicate_keep": list(config.get("duplicate_keep") or []),
         "duplicate_same_image_scope": str(config.get("duplicate_same_image_scope", "same_image_name")),
     }

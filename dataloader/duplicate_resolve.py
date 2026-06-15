@@ -45,6 +45,17 @@ def path_suffix_matches(path: Path, suffix: str) -> bool:
     return str(path).replace("\\", "/").endswith(str(suffix).replace("\\", "/"))
 
 
+def duplicate_preference_key(sample: Sample, rules: dict[str, Any]) -> tuple[int, str, str]:
+    path_text = str(sample.label_path).replace("\\", "/")
+    preferred = [str(value).replace("\\", "/") for value in rules.get("duplicate_prefer_label_path_contains") or []]
+    rank = 0 if any(value and value in path_text for value in preferred) else 1
+    return (rank, sample.batch_name, path_text)
+
+
+def has_preferred_duplicate_source(group: list[Sample], rules: dict[str, Any]) -> bool:
+    return any(duplicate_preference_key(sample, rules)[0] == 0 for sample in group)
+
+
 def configured_duplicate_keep(group: list[Sample], rules: dict[str, Any]) -> Sample | None:
     image_hash = group[0].image_hash
     for item in rules.get("duplicate_keep") or []:
@@ -94,13 +105,39 @@ def merge_boxes(samples: list[Sample], min_iou: float) -> list[Box] | None:
     return merged
 
 
+def merge_boxes_union(samples: list[Sample], rules: dict[str, Any]) -> tuple[Sample, int]:
+    min_iou = float(rules.get("duplicate_merge_iou", rules.get("duplicate_min_iou", 0.50)))
+    ordered = sorted(samples, key=lambda sample: duplicate_preference_key(sample, rules))
+    target = ordered[0]
+    merged: list[Box] = []
+    removed_duplicates = 0
+    for sample in ordered:
+        for box in sample.boxes:
+            if any(box.cls == existing.cls and iou(box, existing) >= min_iou for existing in merged):
+                removed_duplicates += 1
+                continue
+            merged.append(box)
+    target.boxes = sorted(merged, key=lambda box: (box.cls, box.xmin, box.ymin, box.xmax, box.ymax))
+    target.notes.append("deduplicate_union_merged_boxes_from_same_image")
+    return target, removed_duplicates
+
+
 def choose_or_merge_duplicate(group: list[Sample], rules: dict[str, Any]) -> tuple[Sample | None, str]:
     signatures = {sample.label_signature for sample in group}
     if len(signatures) == 1:
-        return group[0], "repeated_image_same_label_kept_one"
+        return sorted(group, key=lambda sample: duplicate_preference_key(sample, rules))[0], "repeated_image_same_label_kept_one"
+
+    if rules.get("duplicate_merge_conflicts") and has_preferred_duplicate_source(group, rules):
+        selected, _ = merge_boxes_union(group, rules)
+        return selected, "repeated_image_preferred_labels_union_merged"
+
     selected = configured_duplicate_keep(group, rules)
     if selected is not None:
         return selected, "repeated_image_configured_keep"
+
+    if rules.get("duplicate_merge_conflicts"):
+        selected, _ = merge_boxes_union(group, rules)
+        return selected, "repeated_image_labels_union_merged"
 
     counts = [(sample, class_multiset(sample)) for sample in group]
     superset = [
