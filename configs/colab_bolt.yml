@@ -23,7 +23,7 @@ postprocessor: PostProcessor
 
 use_focal_loss: True
 # MUST match train/val image_size below; the model builds anchors from this.
-eval_spatial_size: [1280, 1280]
+eval_spatial_size: [1536, 2048]
 checkpoint_freq: 4
 output_dir: ./outputs/colab_bolt
 
@@ -54,7 +54,7 @@ dataset:
   polygon_policy: exclude_sample
 
 train_transforms:
-  image_size: [1280, 1280]
+  image_size: [1536, 2048]
   keep_ratio: True
   pad_value: 114
   pad_position: top_left
@@ -68,7 +68,7 @@ train_transforms:
   saturation: 0.3
 
 val_transforms:
-  image_size: [1280, 1280]
+  image_size: [1536, 2048]
   keep_ratio: True
   pad_value: 114
   pad_position: top_left
