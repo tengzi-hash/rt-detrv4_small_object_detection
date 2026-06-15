@@ -1,4 +1,4 @@
-# Dataset build rules for the locomotive RT-DETRv4 training set.
+﻿# Dataset build rules for the locomotive RT-DETRv4 training set.
 # CotterPin 暂时保留，因为我需要他判断是否丢失，不然容易误报，但是我需要想一个办法来确定是开口销不是BoltHead,BoltNut这些东西，可能需要一些额外的辅助方法，
 # 如果后续有大量数据也许能分的更好，或是单独为这个建立一个分类模型，来重点区分这三个区别，先从 CotterPin 训练后的 Confuesion Parts 再看，或是重新标注完整的开口销 
 
@@ -8,10 +8,22 @@ exclude_dirs: [机车漏油真实数据, 大部件标注图]
 batches:
   - name: data1
     path: data_raw/data1
+    drop_classes:
+      - CotterPin
     sample_fixes:
       N-N-T1-20250523-2128-HXD11338-AB-B-1-2-M-19-CLXZ-1-1:
-        remap:
-          Clamp: BoltHead
+        box_fixes:
+          - from: Clamp
+            to: BoltNut
+            box: [1185, 1127, 1279, 1223]
+      N-N-T1-20250519-0856-HXD11319-AB-B-1-1-M-2-SSZZ-1-7:
+        box_fixes:
+          - from: OilCap
+            to: Clamp_1
+            box: [1179, 1183, 1292, 1391]
+          - from: OilCap
+            to: Clamp_1
+            box: [1283, 1211, 1379, 1417]
       N-N-T2-20250527-2257-HXD11415-BA-A-2-4-M-9-CLXZ-1-1:
         remap:
           BoltNut_z: BoltHead
@@ -65,33 +77,59 @@ batches:
 
   - name: data2
     path: data_raw/data2
+    class_remap:
+      CotterPin: CotterPin_k
     sample_fixes:
       N-N-T2-20260408-1324-HXD1D0235-BA-B-2-2-M-8-JCZD-05-12:
         drop: [BoltNut_z]
 
   - name: data3
     path: data_raw/data3
+    class_remap:
+      CotterPin: CotterPin_k
 
   - name: data4
     path: data_raw/data4
+    class_remap:
+      CotterPin: CotterPin_k
     rules:
       label_suffixes: [.xml]
 
   - name: data5
     path: data_raw/data5
+    class_remap:
+      CotterPin: CotterPin_k
     rules:
       output_stem_suffixes:
-        - path_contains: data_raw/data5/360机车项目-手拉环0512-金婵
+        - path_contains: data_raw/data5/360机车项目-0512手拉环断裂-160张-金婵
           suffix: _1
+        - path_contains: data_raw/data5/360机车项目-手拉环0512-金婵
+          suffix: _2
 
   - name: data6_std
-    path: data_raw/data6_std/HXD1D标准图
+    path: data_raw/data6_std
+    class_remap:
+      CotterPin: CotterPin_k
     rules:
       unlabel_output_dir: unlabel_std
+    sample_fixes:
+      T2-HXDXXXXX-M-1-SSZZ-01-2:
+        box_fixes:
+          - from: CotterPin_1
+            to: Clamp_1
+            box: [1296, 640, 1465, 943]
 
+      T2-HXDXXXXX-M-6-QYDJ-01-6:
+        drop: [BoltHead_1]
 duplicate_min_iou: 0.50
+duplicate_merge_conflicts: true
+duplicate_merge_iou: 0.50
+duplicate_prefer_label_path_contains:
+  - data_raw/data5/360机车项目-0512手拉环断裂-160张-金婵
 
 duplicate_keep:
+  - image_hash: 4617eb4a9dbf37297454c5406c70b37caab6408a
+    keep: data1/1304/N-N-T1-20250523-1952-HXD11304-AB-B-1-1-M-1-SSZZ-3-4.xml
   - image_hash: 03438cd7acf5f03bea9105df3d70bf90091b02bd
     keep: data1/1340/N-N-T2-20250523-1952-HXD11304-AB-A-1-1-M-16-JCZD-2-2.xml
   - image_hash: 15023b7cc0103f9829f30819c15409c0eb34a52a
@@ -113,3 +151,5 @@ split:
   val_ratio: 0.1
   seed: 20260603
   train_only_class_max_files: 2
+
+

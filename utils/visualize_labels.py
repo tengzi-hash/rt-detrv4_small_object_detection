@@ -17,6 +17,7 @@ import argparse
 import csv
 import hashlib
 import json
+import re
 import shutil
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -45,7 +46,9 @@ class Sample:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Draw labeled boxes into an onhold folder.")
-    parser.add_argument("source", help="Dataset root, raw root, label file, or image file.")
+    parser.add_argument("source", nargs="?", help="Dataset root, raw root, label file, or image file.")
+    parser.add_argument("--images", default=None, help="Image file or directory.")
+    parser.add_argument("--annotations", default=None, help="Annotation file or directory.")
     parser.add_argument(
         "--classes",
         nargs="*",
@@ -55,7 +58,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default=None, help="Output folder. Default: onhold/visualized_<source>_<classes>.")
     parser.add_argument("--image-root", default=None, help="Optional image root override.")
     parser.add_argument("--label-root", default=None, help="Optional label root override.")
+    parser.add_argument("--recursive", action="store_true", help="Recursively scan image and label roots.")
     parser.add_argument("--limit", type=int, default=0, help="Maximum samples to write. 0 means no limit.")
+    parser.add_argument("--line-width", type=int, default=0, help="Bounding-box outline width. 0 chooses automatically.")
+    parser.add_argument("--txt-format", choices=("auto", "xyxy", "xywh", "yolo"), default="auto", help="TXT label format.")
+    parser.add_argument("--filter-label", default=None, help="Compatibility alias for --classes with one label.")
+    parser.add_argument("--label-case-sensitive", action="store_true", help="Make --filter-label matching case-sensitive.")
     parser.add_argument("--draw-only-selected", action="store_true", help="Draw only selected classes instead of all boxes.")
     parser.add_argument(
         "--export-mode",
@@ -65,6 +73,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--copy-label", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--copy-image", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--copy-matches-dir", default=None, help="Compatibility alias for --output-dir with --export-mode all.")
+    parser.add_argument("--export-dataset-dir", default=None, help="Compatibility alias for --output-dir with --export-mode all.")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing visualizations.")
     return parser.parse_args()
 
@@ -112,8 +122,23 @@ def parse_json(label_path: Path) -> tuple[str | None, list[Box]]:
         if not data:
             return None, []
         data = data[0]
-    filename = str(data.get("filename") or data.get("image") or "") or None
+    filename = str(data.get("filename") or data.get("image") or data.get("imagePath") or "") or None
     boxes: list[Box] = []
+    if isinstance(data, dict) and "shapes" in data:
+        for shape in data.get("shapes") or []:
+            cls = str(shape.get("label") or "").strip()
+            points = shape.get("points") or []
+            if not cls or not points:
+                continue
+            try:
+                xs = [float(point[0]) for point in points]
+                ys = [float(point[1]) for point in points]
+                box = Box(cls, int(round(min(xs))), int(round(min(ys))), int(round(max(xs))), int(round(max(ys))))
+            except (TypeError, ValueError, IndexError):
+                continue
+            if box.xmax > box.xmin and box.ymax > box.ymin:
+                boxes.append(box)
+        return filename, boxes
     for obj in data.get("objects") or data.get("annotations") or []:
         cls = str(obj.get("name") or obj.get("label") or obj.get("class") or "").strip()
         bndbox = obj.get("bndbox") or obj.get("box") or obj
@@ -134,46 +159,95 @@ def parse_json(label_path: Path) -> tuple[str | None, list[Box]]:
     return filename, boxes
 
 
-def parse_txt(label_path: Path) -> tuple[str | None, list[Box]]:
+NUMBER_RE = re.compile(r"[-+]?(?:\d*\.\d+|\d+)")
+
+
+def coerce_box(values: list[float], image_size: tuple[int, int] | None, txt_format: str) -> tuple[int, int, int, int] | None:
+    if len(values) < 4:
+        return None
+    coords = values[:4]
+    if image_size and (txt_format == "yolo" or max(abs(value) for value in coords) <= 1.5):
+        width, height = image_size
+        if txt_format == "yolo" or len(values) == 4:
+            cx, cy, w, h = coords
+            xmin = (cx - w / 2.0) * width
+            ymin = (cy - h / 2.0) * height
+            xmax = (cx + w / 2.0) * width
+            ymax = (cy + h / 2.0) * height
+        else:
+            xmin, ymin, xmax, ymax = coords[0] * width, coords[1] * height, coords[2] * width, coords[3] * height
+    elif txt_format == "xywh":
+        xmin, ymin, w, h = coords
+        xmax, ymax = xmin + w, ymin + h
+    else:
+        xmin, ymin, xmax, ymax = coords
+        if xmax < xmin or ymax < ymin:
+            xmin, ymin, w, h = coords
+            xmax, ymax = xmin + w, ymin + h
+    box = tuple(int(round(value)) for value in (xmin, ymin, xmax, ymax))
+    return box if box[2] > box[0] and box[3] > box[1] else None
+
+
+def parse_txt(label_path: Path, image_path: Path | None = None, txt_format: str = "auto") -> tuple[str | None, list[Box]]:
     filename: str | None = None
     boxes: list[Box] = []
+    image_size: tuple[int, int] | None = None
+    if image_path is not None and image_path.is_file():
+        from PIL import Image
+
+        with Image.open(image_path) as image:
+            image_size = image.size
     for line in label_path.read_text(encoding="utf-8-sig").splitlines():
         line = line.strip()
-        if not line or line.startswith("#") or ";" not in line:
+        if not line or line.startswith("#"):
             continue
-        parts = [part.strip() for part in line.split(";")]
-        if len(parts) != 6:
+        parts = [part for part in re.split(r"[\s,;]+", line) if part]
+        if not parts:
             continue
-        raw_filename, xmin, ymin, xmax, ymax, cls = parts
-        filename = filename or Path(raw_filename).name
-        try:
-            box = Box(cls, int(round(float(xmin))), int(round(float(ymin))), int(round(float(xmax))), int(round(float(ymax))))
-        except ValueError:
+
+        if parts and not NUMBER_RE.fullmatch(parts[0]):
+            raw_name = Path(parts[0]).name
+            if raw_name.lower().endswith(IMAGE_SUFFIXES):
+                filename = filename or raw_name
+                parts = parts[1:]
+
+        numbers = [float(part) for part in parts if NUMBER_RE.fullmatch(part)]
+        text_tokens = [part for part in parts if not NUMBER_RE.fullmatch(part)]
+        if len(numbers) < 4:
             continue
-        if box.xmax > box.xmin and box.ymax > box.ymin:
-            boxes.append(box)
+        label = text_tokens[-1] if text_tokens else "object"
+        coords = numbers[:4]
+        if txt_format == "yolo" or (not text_tokens and len(numbers) >= 5):
+            label = text_tokens[-1] if text_tokens else str(int(numbers[0]))
+            coords = numbers[1:5] if len(numbers) >= 5 else numbers[:4]
+            box_values = coerce_box(coords, image_size, "yolo")
+        else:
+            box_values = coerce_box(coords, image_size, txt_format)
+        if box_values:
+            boxes.append(Box(label, *box_values))
     return filename, boxes
 
 
-def parse_label(label_path: Path) -> tuple[str | None, list[Box]]:
+def parse_label(label_path: Path, image_path: Path | None = None, txt_format: str = "auto") -> tuple[str | None, list[Box]]:
     suffix = label_path.suffix.lower()
     if suffix == ".xml":
         return parse_xml(label_path)
     if suffix == ".json":
         return parse_json(label_path)
     if suffix == ".txt":
-        return parse_txt(label_path)
+        return parse_txt(label_path, image_path=image_path, txt_format=txt_format)
     return None, []
 
 
-def build_image_indexes(roots: list[Path]) -> tuple[dict[str, list[Path]], dict[str, list[Path]]]:
+def build_image_indexes(roots: list[Path], recursive: bool = True) -> tuple[dict[str, list[Path]], dict[str, list[Path]]]:
     by_name: dict[str, list[Path]] = {}
     by_stem: dict[str, list[Path]] = {}
     for root in roots:
         if root.is_file() and root.suffix.lower() in IMAGE_SUFFIXES:
             images = [root]
         elif root.is_dir():
-            images = [p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in IMAGE_SUFFIXES]
+            iterator = root.rglob("*") if recursive else root.glob("*")
+            images = [p for p in iterator if p.is_file() and p.suffix.lower() in IMAGE_SUFFIXES]
         else:
             images = []
         for image in images:
@@ -238,13 +312,14 @@ def infer_roots(source: Path, image_root: str | None, label_root: str | None) ->
     return labels, images
 
 
-def iter_label_files(roots: list[Path]) -> list[Path]:
+def iter_label_files(roots: list[Path], recursive: bool = True) -> list[Path]:
     labels: list[Path] = []
     for root in roots:
         if root.is_file() and root.suffix.lower() in LABEL_SUFFIXES:
             labels.append(root)
         elif root.is_dir():
-            labels.extend(p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in LABEL_SUFFIXES)
+            iterator = root.rglob("*") if recursive else root.glob("*")
+            labels.extend(p for p in iterator if p.is_file() and p.suffix.lower() in LABEL_SUFFIXES)
     return sorted(set(labels))
 
 
@@ -259,7 +334,7 @@ def color_for_class(cls: str) -> tuple[int, int, int]:
     return 64 + digest[0] % 160, 64 + digest[1] % 160, 64 + digest[2] % 160
 
 
-def draw_sample(sample: Sample, output_path: Path, classes: set[str], draw_only_selected: bool, overwrite: bool) -> bool:
+def draw_sample(sample: Sample, output_path: Path, classes: set[str], draw_only_selected: bool, overwrite: bool, line_width: int = 0) -> bool:
     if output_path.exists() and not overwrite:
         return False
     from PIL import Image, ImageDraw, ImageFont
@@ -272,7 +347,7 @@ def draw_sample(sample: Sample, output_path: Path, classes: set[str], draw_only_
     boxes = selected_boxes(list(sample.boxes), classes) if draw_only_selected else list(sample.boxes)
     for box in boxes:
         color = color_for_class(box.cls)
-        width = max(2, round(min(canvas.size) / 700))
+        width = line_width if line_width > 0 else max(2, round(min(canvas.size) / 700))
         draw.rectangle((box.xmin, box.ymin, box.xmax, box.ymax), outline=color, width=width)
         label = box.cls
         text_box = draw.textbbox((0, 0), label, font=font)
@@ -319,30 +394,43 @@ def should_copy_image(args: argparse.Namespace) -> bool:
 
 def main() -> int:
     args = parse_args()
-    source = Path(args.source)
+    if not args.source and not (args.images and args.annotations):
+        raise SystemExit("Provide either SOURCE or both --images and --annotations.")
+    source = Path(args.source or args.images or ".")
     classes = normalize_classes(args.classes)
-    output_dir = Path(args.output_dir) if args.output_dir else default_output_dir(source, classes)
-    label_roots, image_roots = infer_roots(source, args.image_root, args.label_root)
-    by_name, by_stem = build_image_indexes(image_roots)
+    if args.filter_label:
+        classes.add(args.filter_label)
+    output_dir = Path(args.export_dataset_dir or args.copy_matches_dir or args.output_dir) if (args.export_dataset_dir or args.copy_matches_dir or args.output_dir) else default_output_dir(source, classes)
+    if args.images and args.annotations:
+        image_roots = [Path(args.images)]
+        label_roots = [Path(args.annotations)]
+        if args.export_dataset_dir or args.copy_matches_dir:
+            args.export_mode = "all"
+    else:
+        label_roots, image_roots = infer_roots(source, args.image_root, args.label_root)
+    by_name, by_stem = build_image_indexes(image_roots, recursive=args.recursive or not (args.images and args.annotations))
 
     samples: list[Sample] = []
     scanned = 0
     no_image = 0
     no_box = 0
     no_match = 0
-    for label_path in iter_label_files(label_roots):
+    for label_path in iter_label_files(label_roots, recursive=args.recursive or not (args.images and args.annotations)):
         scanned += 1
-        filename, boxes = parse_label(label_path)
+        filename, preliminary_boxes = parse_label(label_path, txt_format=args.txt_format)
+        image_path = find_image(label_path, filename, by_name, by_stem)
+        if image_path is None:
+            no_image += 1
+            continue
+        filename, boxes = parse_label(label_path, image_path=image_path, txt_format=args.txt_format)
+        if not boxes:
+            boxes = preliminary_boxes
         if not boxes:
             no_box += 1
             continue
         hits = selected_boxes(boxes, classes)
         if not hits:
             no_match += 1
-            continue
-        image_path = find_image(label_path, filename, by_name, by_stem)
-        if image_path is None:
-            no_image += 1
             continue
         samples.append(Sample(image_path=image_path, label_path=label_path, boxes=tuple(boxes)))
         if args.limit > 0 and len(samples) >= args.limit:
@@ -361,7 +449,7 @@ def main() -> int:
         for sample in samples:
             output_name = safe_output_name(sample.image_path, seen_names)
             vis_path = visualize_dir / output_name
-            if draw_sample(sample, vis_path, classes, args.draw_only_selected, args.overwrite):
+            if draw_sample(sample, vis_path, classes, args.draw_only_selected, args.overwrite, args.line_width):
                 written += 1
             else:
                 skipped += 1
